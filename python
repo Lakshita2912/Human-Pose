@@ -1,0 +1,67 @@
+import cv2
+import numpy as np
+
+# Load pre-trained model for pose estimation (OpenPose or PoseNet)
+net = cv2.dnn.readNetFromTensorflow('pose_estimation_model.pb')
+
+# Initialize the webcam (camera index 0 for the default webcam)
+cap = cv2.VideoCapture(0)
+
+# Check if the webcam is opened correctly
+if not cap.isOpened():
+    print("Error: Could not open webcam.")
+    exit()
+
+# List of body parts' keypoints (e.g., head, shoulders, elbows, etc.)
+body_parts = [
+    'Nose', 'Neck', 'RShoulder', 'RElbow', 'RWrist', 
+    'LShoulder', 'LElbow', 'LWrist', 'MidHip', 'RHip', 
+    'RKnee', 'RAnkle', 'LHip', 'LKnee', 'LAnkle', 
+    'REye', 'LEye', 'REar', 'LEar', 'LBigToe', 
+    'LSmallToe', 'LHeel', 'RBigToe', 'RSmallToe', 'RHeel'
+]
+
+while True:
+    # Capture frame-by-frame
+    ret, frame = cap.read()
+
+    # If frame is read correctly, ret is True
+    if not ret:
+        print("Failed to grab frame")
+        break
+
+    # Get the dimensions of the frame
+    height, width, _ = frame.shape
+
+    # Prepare the frame (resize and normalize)
+    blob = cv2.dnn.blobFromImage(frame, 1.0 / 255, (368, 368), (0, 0, 0), swapRB=False, crop=False)
+    net.setInput(blob)
+
+    # Forward pass through the model to get keypoints
+    output = net.forward()
+
+    # Visualize keypoints on the image
+    for i in range(len(body_parts)):
+        # Get the confidence of the predicted keypoint
+        prob_map = output[0, i, :, :]
+        _, prob, _, point = cv2.minMaxLoc(prob_map)
+
+        if prob > 0.1:  # Confidence threshold
+            # Scale the keypoints back to the image size
+            x = int(point[0] * width / 368)
+            y = int(point[1] * height / 368)
+
+            # Draw circles on the keypoints
+            cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
+            cv2.putText(frame, body_parts[i], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+    # Display the output image with keypoints
+    cv2.imshow("Pose Estimation - Webcam", frame)
+
+    # Press 'q' to exit the video stream
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release the webcam and close all OpenCV windows
+cap.release()
+cv2.destroyAllWindows()
